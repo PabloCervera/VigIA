@@ -1,4 +1,6 @@
-# Vision AI Pipeline
+# VigIA
+
+> Un **vig**ía con **IA**: vigilancia de vídeo que detecta y sigue objetos en tiempo real y delega el análisis de riesgo en un agente de IA generativa.
 
 Pipeline de **visión por computador** que detecta y sigue objetos en tiempo real sobre un flujo de vídeo (webcam, fichero o RTSP) y, cuando identifica situaciones potencialmente relevantes (objetos que quedan estáticos), delega en un **agente de IA generativa** que describe la escena, evalúa el nivel de riesgo y emite una alerta. Los eventos se persisten en una base de datos y se exploran desde un **dashboard web** que incluye un **chat para hacer preguntas** sobre lo ocurrido.
 
@@ -76,7 +78,7 @@ El enrutado entre `send_alert` e `ignore` se decide mediante una **arista condic
 ## Estructura del repositorio
 
 ```
-vision-ai-pipeline/
+vigia/
 ├── src/
 │   ├── capture/
 │   │   └── video_source.py      # Abstracción de fuente de vídeo (webcam/fichero/RTSP)
@@ -119,7 +121,7 @@ vision-ai-pipeline/
 ```bash
 # 1. Clonar el repositorio
 git clone <url-del-repo>
-cd vision-ai-pipeline
+cd vigia
 
 # 2. Crear y activar un entorno virtual
 python -m venv .venv
