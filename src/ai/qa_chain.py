@@ -6,6 +6,7 @@ los eventos proporcionados.
 
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
+from config import GROQ_MODEL
 
 class QAChain:
     """
@@ -13,7 +14,7 @@ class QAChain:
     Esta clase utiliza un modelo de lenguaje para procesar la pregunta del usuario y generar una respuesta basada en los eventos proporcionados.
     """
     def __init__(self):
-        self.qaChain = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct")
+        self.qaChain = ChatGroq(model=GROQ_MODEL)
 
     def ask(self, question, events):
         """

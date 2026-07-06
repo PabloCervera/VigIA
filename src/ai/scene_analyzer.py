@@ -8,6 +8,7 @@ import cv2
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from dotenv import load_dotenv
+from config import GROQ_MODEL
 
 class SceneAnalyzer:
     """
@@ -21,7 +22,7 @@ class SceneAnalyzer:
         Inicializa el analizador de escenas y carga las variables de entorno necesarias.
         """
         load_dotenv()
-        self.analyzer = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct")
+        self.analyzer = ChatGroq(model=GROQ_MODEL)
         
     def analyze(self, frame, context=""):
         """

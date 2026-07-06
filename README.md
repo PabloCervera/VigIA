@@ -2,6 +2,10 @@
 
 > Un **vig**ía con **IA**: vigilancia de vídeo que detecta y sigue objetos en tiempo real y delega el análisis de riesgo en un agente de IA generativa.
 
+![tests](https://github.com/PabloCervera/vigia/actions/workflows/tests.yml/badge.svg)
+![license](https://img.shields.io/badge/license-MIT-blue.svg)
+![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+
 Pipeline de **visión por computador** que detecta y sigue objetos en tiempo real sobre un flujo de vídeo (webcam, fichero o RTSP) y, cuando identifica situaciones potencialmente relevantes (objetos que quedan estáticos), delega en un **agente de IA generativa** que describe la escena, evalúa el nivel de riesgo y emite una alerta. Los eventos se persisten en una base de datos y se exploran desde un **dashboard web** que incluye un **chat para hacer preguntas** sobre lo ocurrido.
 
 Combina:
@@ -227,10 +231,23 @@ El desarrollo está organizado por sprints (ver historial de commits):
 - ✅ **Sprint 3** — Descripción de escena con Groq Vision y agente de riesgo con LangGraph.
 - ✅ **Sprint 4** — API FastAPI (control del pipeline, WebSocket de streaming), dashboard de Streamlit y chat de Q&A sobre los eventos.
 
-### Tareas pendientes
+### Próximos pasos
 
-- [ ] Integrar un bot de Telegram para notificaciones.
+- [ ] Evaluación formal del modelo de riesgo con un conjunto etiquetado (precisión/recall).
+- [ ] Soporte multi-sesión (procesar varios vídeos en paralelo).
 - [ ] Ampliar la cobertura de tests (lógica de riesgo del agente con mocks).
+
+---
+
+## Limitaciones conocidas
+
+Este proyecto es una **prueba de concepto** orientada a portfolio, no un sistema de seguridad listo para producción. Conviene tenerlo presente:
+
+- **Mono-usuario**: el estado (pipeline, vídeo actual, progreso) vive en memoria del proceso; se procesa **un vídeo a la vez**.
+- **Riesgo no evaluado formalmente**: la clasificación se apoya en un LLM guiado por una rúbrica y datos de grounding (clase y tiempo inmóvil), pero **no** está calibrada contra un conjunto etiquetado; puede dar falsos positivos/negativos.
+- **Rendimiento dependiente del hardware**: la inferencia corre en CPU por defecto; no se garantizan unos FPS concretos.
+- **Sin autenticación**: la API y el dashboard están pensados para uso local/demostración, sin control de acceso.
+- **Heurística de "objeto estático"**: se basa en la distancia recorrida; no contempla escenarios como cámara en movimiento.
 
 ---
 

@@ -8,7 +8,7 @@ from capture.video_source import VideoSource, VideoSourceError, EndOfStream
 from detection.tracker import Tracker
 from detection.event_detector import EventDetector
 from ai.alert_agent import agent
-from config import FRAMES_DIR
+from config import FRAMES_DIR, FRAME_SIZE, ANALYSIS_INTERVAL
 from datetime import datetime
 
 
@@ -77,7 +77,7 @@ def run_pipeline(video_source=0, events=None, latest_frame=None, stop_event=None
     event_detector = EventDetector(static_threshold=30)
     
     last_analysis_time = 0
-    analysis_interval = 10
+    analysis_interval = ANALYSIS_INTERVAL
 
     # El análisis de escena (LLM) corre en un hilo aparte para no bloquear la captura.
     # maxsize=1: si ya hay un análisis pendiente, se descarta el nuevo (lo limita el intervalo).
@@ -99,7 +99,7 @@ def run_pipeline(video_source=0, events=None, latest_frame=None, stop_event=None
                     if progress is not None:
                         progress["processed"] = processed_frames
                         progress["percent"] = round(processed_frames / total_frames * 100, 1) if total_frames else 0.0
-                    frame = cv2.resize(frame, (1708, 960))
+                    frame = cv2.resize(frame, FRAME_SIZE)
                     detections = detector.detect(frame)
                     tracks = tracker.update(detections, frame)
                     annotated_frame = tracker.annotate(frame, tracks)

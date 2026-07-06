@@ -10,6 +10,7 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, END
 from ai.scene_analyzer import SceneAnalyzer
+from config import GROQ_MODEL
 
 class AgentState(TypedDict):
     frame: object
@@ -53,7 +54,7 @@ ante poca evidencia, no escales el nivel."""
 
 analyzer = SceneAnalyzer()
 load_dotenv()
-llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct")
+llm = ChatGroq(model=GROQ_MODEL)
 risk_llm = llm.with_structured_output(RiskAssessment)
 
 

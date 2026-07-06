@@ -112,7 +112,8 @@ def ask_question(question: Question):
 @app.post("/upload_video")
 async def upload_video(file: UploadFile = File(...)):
     """Guarda el vídeo subido en el directorio de uploads y devuelve su ruta en el servidor."""
-    video_path = str(UPLOADS_DIR / file.filename)
+    filename = os.path.basename(file.filename)   # evita rutas maliciosas (path traversal)
+    video_path = str(UPLOADS_DIR / filename)
     with open(video_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     return {"video_path": video_path}
