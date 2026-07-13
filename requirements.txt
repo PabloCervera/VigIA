@@ -17,9 +17,6 @@ websockets==14.1
 # --- Dashboard (Sprint 4) ---
 streamlit==1.41.1
 
-# --- Notificaciones (Sprint 3) ---
-python-telegram-bot==21.9
-
 # --- Utilidades ---
 python-dotenv==1.0.1
 pydantic==2.10.4

@@ -24,31 +24,43 @@ Combina:
 ## Arquitectura
 
 ```
-┌──────────────┐  frames  ┌──────────────┐ detecciones ┌──────────┐ tracks ┌────────────────┐
-│ VideoSource  │────────▶ │ YOLODetector │───────────▶ │ Tracker  │──────▶ │ EventDetector  │
-│ (cam/file/   │          │ (YOLOv8)     │             │(DeepSORT)│        │ (objetos       │
-│  RTSP)       │          └──────────────┘             └──────────┘        │  estáticos)    │
-└──────────────┘                                                           └───────┬────────┘
-                                                                                   │ static_objects
-                                                                                   ▼
-                                                   ┌─────────────────────────────────────────┐
-                                                   │  Agente de alerta (LangGraph)             │
-                                                   │  analyze_scene → decide_risk → ┬─ alta/med│
-                                                   │   (SceneAnalyzer/Groq Vision)  └─ baja ─┐ │
-                                                   │                          send_alert / ignore
-                                                   └─────────────────┬─────────────────────────┘
-                                                                     │ alert + frame (si riesgo medio/alto)
-                                                                     ▼
-                                       ┌──────────────────┐    ┌─────────────────────┐
-                                       │  EventStore      │◀──▶│  FastAPI (api.py)   │
-                                       │  (SQLite)        │    │  REST + WebSocket   │
-                                       └──────────────────┘    └──────────┬──────────┘
-                                                  ▲                       │
-                                          ┌───────┴────────┐              ▼
-                                          │  QAChain (Groq)│     ┌────────────────────┐
-                                          │  chat sobre    │     │ Dashboard           │
-                                          │  los eventos   │     │ (Streamlit)         │
-                                          └────────────────┘     └────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                     CAPA DE ENTRADA                     │
+│         VideoSource  (webcam / fichero / RTSP)          │
+└──────────────────────────┬──────────────────────────────┘
+                           │ frames
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                   CAPA DE VISIÓN CV                     │
+│   YOLODetector  ──▶  Tracker (DeepSORT)  ──▶  EventDetector │
+│     (YOLOv8)        IDs persistentes       objetos estáticos │
+└──────────────────────────┬──────────────────────────────┘
+                           │ static_objects
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│               CAPA DE IA GENERATIVA                     │
+│            Agente de alerta  (LangGraph)                │
+│                                                         │
+│   analyze_scene  ──▶  decide_risk  ──▶  send_alert      │
+│  (SceneAnalyzer /        (Groq)          (medio/alto)   │
+│   Groq Vision)                    └────▶  ignore (bajo) │
+└──────────────────────────┬──────────────────────────────┘
+                           │ evento + frame (riesgo medio/alto)
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                 CAPA DE PERSISTENCIA                    │
+│                  EventStore  (SQLite)                   │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+            ┌──────────────┴──────────────┐
+            ▼                             ▼
+┌───────────────────────┐   ┌─────────────────────────────┐
+│       FastAPI         │   │     Dashboard  (Streamlit)  │
+│   REST + WebSocket    │◀──│  subir vídeo / iniciar /    │
+│  /start  /stop        │   │  detener / ver alertas      │
+│  /events /ask         │──▶│  con frames + chat Q&A      │
+│  /latest_frame        │   │  (QAChain / Groq)           │
+└───────────────────────┘   └─────────────────────────────┘
 ```
 
 ### Flujo del pipeline ([src/run_pipeline.py](src/run_pipeline.py))
@@ -107,7 +119,6 @@ vigia/
 ├── pytest.ini
 ├── Dockerfile                   # Imagen del proyecto
 ├── docker-compose.yml           # Orquestación de API + dashboard
-├── .env.example                 # Plantilla de variables de entorno
 ├── requirements.txt
 └── README.md
 ```
@@ -197,8 +208,7 @@ Tests unitarios de la lógica de dominio (detección de objetos estáticos y per
 Levanta la API y el dashboard como dos servicios con un solo comando:
 
 ```bash
-# 1. Configura tu clave de Groq
-cp .env.example .env        # y edita GROQ_API_KEY
+# 1. Crea un fichero .env con tu GROQ_API_KEY (ver «Configuración»)
 
 # 2. Construye y arranca
 docker compose up --build
@@ -261,6 +271,5 @@ Este proyecto es una **prueba de concepto** orientada a portfolio, no un sistema
 | Persistencia          | SQLite                                                  |
 | Dashboard             | Streamlit                                               |
 | Despliegue            | Docker, Docker Compose                                  |
-| Notificaciones (prev.)| python-telegram-bot                                     |
 | Utilidades            | python-dotenv, pydantic, pillow, numpy                  |
 | Testing               | pytest, pytest-asyncio                                  |
