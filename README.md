@@ -6,7 +6,7 @@
 ![license](https://img.shields.io/badge/license-MIT-blue.svg)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 
-Pipeline de **visión por computador** que detecta y sigue objetos en tiempo real sobre un flujo de vídeo (webcam, fichero o RTSP) y, cuando identifica situaciones potencialmente relevantes (objetos que quedan estáticos), delega en un **agente de IA generativa** que describe la escena, evalúa el nivel de riesgo y emite una alerta. Los eventos se persisten en una base de datos y se exploran desde un **dashboard web** que incluye un **chat para hacer preguntas** sobre lo ocurrido.
+Pipeline de **visión por computador** que detecta y sigue objetos en tiempo real sobre un flujo de vídeo (webcam o fichero) y, cuando identifica situaciones potencialmente relevantes (objetos que quedan estáticos), delega en un **agente de IA generativa** que describe la escena, evalúa el nivel de riesgo y emite una alerta. Los eventos se persisten en una base de datos y se exploran desde un **dashboard web** que incluye un **chat para hacer preguntas** sobre lo ocurrido.
 
 Combina:
 
@@ -17,50 +17,29 @@ Combina:
 - **SQLite** para almacenar el historial de eventos.
 - **Streamlit** como interfaz: subir vídeo, ver alertas con su captura y preguntar sobre la escena.
 
-> ⚠️ El proyecto está en desarrollo activo (organizado por sprints). Ver [Estado del proyecto](#estado-del-proyecto).
-
 ---
+
+## Demo
+
+![Demo del dashboard](docs/demo.gif)
+
+| Subida de vídeo | Eventos detectados | Chat Q&A |
+|---|---|---|
+| ![](docs/image.png) | ![](docs/image2.png) | ![](docs/image3.png) |
 
 ## Arquitectura
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                     CAPA DE ENTRADA                     │
-│         VideoSource  (webcam / fichero / RTSP)          │
-└──────────────────────────┬──────────────────────────────┘
-                           │ frames
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│                   CAPA DE VISIÓN CV                     │
-│   YOLODetector  ──▶  Tracker (DeepSORT)  ──▶  EventDetector │
-│     (YOLOv8)        IDs persistentes       objetos estáticos │
-└──────────────────────────┬──────────────────────────────┘
-                           │ static_objects
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│               CAPA DE IA GENERATIVA                     │
-│            Agente de alerta  (LangGraph)                │
-│                                                         │
-│   analyze_scene  ──▶  decide_risk  ──▶  send_alert      │
-│  (SceneAnalyzer /        (Groq)          (medio/alto)   │
-│   Groq Vision)                    └────▶  ignore (bajo) │
-└──────────────────────────┬──────────────────────────────┘
-                           │ evento + frame (riesgo medio/alto)
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│                 CAPA DE PERSISTENCIA                    │
-│                  EventStore  (SQLite)                   │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-            ┌──────────────┴──────────────┐
-            ▼                             ▼
-┌───────────────────────┐   ┌─────────────────────────────┐
-│       FastAPI         │   │     Dashboard  (Streamlit)  │
-│   REST + WebSocket    │◀──│  subir vídeo / iniciar /    │
-│  /start  /stop        │   │  detener / ver alertas      │
-│  /events /ask         │──▶│  con frames + chat Q&A      │
-│  /latest_frame        │   │  (QAChain / Groq)           │
-└───────────────────────┘   └─────────────────────────────┘
+```mermaid
+flowchart TD
+    A["VideoSource\nwebcam / fichero / RTSP"] -->|frames| B["YOLODetector\nYOLOv8"]
+    B -->|detecciones| C["Tracker\nDeepSORT — IDs persistentes"]
+    C -->|tracks| D["EventDetector\nobjetos estáticos"]
+    D -->|static_objects| E["Agente LangGraph\nanalyze_scene → decide_risk"]
+    E -->|riesgo medio/alto| F["send_alert\ncompone mensaje de alerta"]
+    E -->|riesgo bajo| G["ignore"]
+    F --> H["EventStore\nSQLite + frame en disco"]
+    H <-->|eventos| I["FastAPI\n/start /stop /events /ask /latest_frame"]
+    I <-->|HTTP| J["Dashboard Streamlit\nsubir vídeo · alertas con frame · chat Q&A"]
 ```
 
 ### Flujo del pipeline ([src/run_pipeline.py](src/run_pipeline.py))
@@ -245,7 +224,6 @@ El desarrollo está organizado por sprints (ver historial de commits):
 
 - [ ] Evaluación formal del modelo de riesgo con un conjunto etiquetado (precisión/recall).
 - [ ] Soporte multi-sesión (procesar varios vídeos en paralelo).
-- [ ] Ampliar la cobertura de tests (lógica de riesgo del agente con mocks).
 
 ---
 
@@ -255,7 +233,6 @@ Este proyecto es una **prueba de concepto** orientada a portfolio, no un sistema
 
 - **Mono-usuario**: el estado (pipeline, vídeo actual, progreso) vive en memoria del proceso; se procesa **un vídeo a la vez**.
 - **Riesgo no evaluado formalmente**: la clasificación se apoya en un LLM guiado por una rúbrica y datos de grounding (clase y tiempo inmóvil), pero **no** está calibrada contra un conjunto etiquetado; puede dar falsos positivos/negativos.
-- **Rendimiento dependiente del hardware**: la inferencia corre en CPU por defecto; no se garantizan unos FPS concretos.
 - **Sin autenticación**: la API y el dashboard están pensados para uso local/demostración, sin control de acceso.
 - **Heurística de "objeto estático"**: se basa en la distancia recorrida; no contempla escenarios como cámara en movimiento.
 
