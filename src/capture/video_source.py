@@ -78,6 +78,18 @@ class VideoSource:
         total = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
         return total if total > 0 else 0
 
+    def fps(self):
+        """
+        Devuelve los fotogramas por segundo (FPS) del vídeo.
+
+        Returns:
+            float: FPS del vídeo, o 0.0 si se desconoce (p. ej. webcam o stream en directo).
+        """
+        if not self._cap:
+            return 0.0
+        fps = self._cap.get(cv2.CAP_PROP_FPS)
+        return fps if fps and fps > 0 else 0.0
+
     def __enter__(self):
         return self.open()
 

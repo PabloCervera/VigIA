@@ -54,8 +54,12 @@ ante poca evidencia, no escales el nivel."""
 
 analyzer = SceneAnalyzer()
 load_dotenv()
-llm = ChatGroq(model=GROQ_MODEL)
-risk_llm = llm.with_structured_output(RiskAssessment)
+# reasoning_effort="none": sin él, los modelos con razonamiento (Qwen3) agotan el presupuesto
+# de salida pensando y nunca llegan a emitir la respuesta estructurada.
+llm = ChatGroq(model=GROQ_MODEL, reasoning_effort="none")
+# method="json_mode" en lugar del function-calling por defecto: más fiable que el tool call
+# para estos modelos (evita el error tool_use_failed de Groq).
+risk_llm = llm.with_structured_output(RiskAssessment, method="json_mode")
 
 
 def _describe_static_objects(static_objects: list) -> str:
@@ -88,7 +92,11 @@ def decide_risk(state: AgentState) -> dict:
         f"{RISK_RUBRIC}\n\n"
         f"Descripción de la escena:\n{state['scene_description']}\n\n"
         f"Objetos estáticos detectados:\n{_describe_static_objects(state['static_objects'])}\n\n"
-        f"Evalúa el nivel de riesgo siguiendo la política."
+        f"Evalúa el nivel de riesgo siguiendo la política.\n\n"
+        f"Responde ÚNICAMENTE con un objeto JSON con estas claves:\n"
+        f'- "risk_level": uno de "low", "medium" o "high".\n'
+        f'- "reason": justificación breve (1-2 frases).\n'
+        f'- "confidence": número entre 0.0 y 1.0.'
     )
     assessment = risk_llm.invoke([HumanMessage(content=prompt)])
     return {

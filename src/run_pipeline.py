@@ -12,20 +12,40 @@ from config import FRAMES_DIR, FRAME_SIZE, ANALYSIS_INTERVAL
 from datetime import datetime
 
 
+def _format_video_time(seconds):
+    """Formatea un instante del vídeo (en segundos) como mm:ss o hh:mm:ss."""
+    seconds = int(seconds)
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
 def _analysis_worker(job_queue, events, video):
     """
     Consume en segundo plano los trabajos de análisis de escena encolados por el pipeline.
 
-    Cada trabajo es una tupla (frame, static_objects). Invoca al agente de IA (llamada lenta
-    al LLM) sin bloquear el bucle de captura y, si el riesgo es medio/alto, guarda la captura
-    y registra el evento. Se detiene al recibir el centinela None.
+    Cada trabajo es una tupla (frame, annotated_frame, static_objects, video_time). Invoca al
+    agente de IA (llamada lenta al LLM) sin bloquear el bucle de captura y, si el riesgo es
+    medio/alto, guarda la captura y registra el evento. El análisis se hace sobre el frame
+    **crudo**, mientras que la captura que se persiste es el **anotado**, para que en el evento
+    se vea qué objeto lo disparó (caja e ID). `video_time` es el instante del vídeo (en segundos)
+    en que se capturó el frame, o None en fuentes en directo. Se detiene al recibir el centinela None.
+
+    Registra por consola los errores (con su tipo) y un resumen final, para poder distinguir
+    «no había riesgo» de «las llamadas al LLM fallaron», que desde el dashboard se ven igual:
+    cero eventos.
     """
+    analizados = guardados = fallidos = 0
+    errores = {}
     while True:
         job = job_queue.get()
         try:
             if job is None:
                 break
-            frame, static_objects = job
+            frame, annotated_frame, static_objects, video_time = job
+            analizados += 1
             result = agent.invoke({
                 "frame": frame,
                 "static_objects": static_objects,
@@ -36,16 +56,32 @@ def _analysis_worker(job_queue, events, video):
                 "alert_message": ""
             })
             if events is not None and result["risk_level"] in ("medium", "high"):
-                for obj in static_objects:
+                # Instante del vídeo (mm:ss) si conocemos los FPS; si no (webcam/stream), hora real.
+                if video_time is not None:
+                    timestamp = _format_video_time(video_time)
+                else:
                     timestamp = datetime.now().isoformat()
-                    filename = f"{obj['track_id']}_{timestamp.replace(':', '-')}.jpg"
+                # Nombre de archivo único e independiente del timestamp mostrado al usuario.
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                for obj in static_objects:
+                    filename = f"{obj['track_id']}_{stamp}.jpg"
                     frame_path = str(FRAMES_DIR / filename)
-                    cv2.imwrite(frame_path, frame)
+                    # Se guarda el frame anotado: muestra la caja y el ID del objeto detectado.
+                    cv2.imwrite(frame_path, annotated_frame)
                     events.add_event(track_id=obj["track_id"], alert=result["alert_message"], risk_level=result["risk_level"], timestamp=timestamp, frame_path=frame_path, video=video)
+                    guardados += 1
         except Exception as e:
-            print(f"Error en el análisis de la escena: {e}")
+            fallidos += 1
+            tipo = type(e).__name__
+            errores[tipo] = errores.get(tipo, 0) + 1
+            print(f"[analisis] ERROR {tipo}: {e}")
         finally:
             job_queue.task_done()
+
+    resumen = f"[analisis] RESUMEN: {analizados} analizados, {guardados} evento(s) guardado(s), {fallidos} fallido(s)"
+    if errores:
+        resumen += " | errores: " + ", ".join(f"{k}x{v}" for k, v in errores.items())
+    print(resumen)
 
 
 def run_pipeline(video_source=0, events=None, latest_frame=None, stop_event=None, video=None, progress=None, model_path="yolov8n.pt", confidence=0.5, show_window=False):
@@ -88,7 +124,10 @@ def run_pipeline(video_source=0, events=None, latest_frame=None, stop_event=None
     try:
         with VideoSource(video_source) as source:
             total_frames = source.frame_count()
+            fps = source.fps()
             processed_frames = 0
+            encolados = descartados = 0
+            frames_con_estaticos = 0
             if progress is not None:
                 progress.update({"processed": 0, "total": total_frames, "percent": 0.0})
 
@@ -113,17 +152,31 @@ def run_pipeline(video_source=0, events=None, latest_frame=None, stop_event=None
 
                     static_objects = event_detector.update(tracks)
                     if static_objects:
+                        frames_con_estaticos += 1
                         now = time.time()
                         if now - last_analysis_time > analysis_interval:
+                            # Segundo del vídeo correspondiente a este frame (None en directo).
+                            video_time = processed_frames / fps if fps else None
                             try:
-                                job_queue.put_nowait((frame.copy(), static_objects))
+                                # Se encolan los dos frames: el crudo para el LLM (las cajas
+                                # dibujadas podrían condicionar su análisis) y el anotado para
+                                # guardarlo como captura del evento.
+                                job_queue.put_nowait(
+                                    (frame.copy(), annotated_frame.copy(), static_objects, video_time)
+                                )
                                 last_analysis_time = now
+                                encolados += 1
                             except queue.Full:
-                                pass  # ya hay un análisis en curso; se omite este
+                                # ya hay un análisis en curso; se omite este
+                                descartados += 1
 
                 except EndOfStream:
                     # Fin normal del vídeo: no es un error.
                     print(f"Procesamiento finalizado: {video}")
+                    print(
+                        f"[vision] {processed_frames} frames, {frames_con_estaticos} con objetos estaticos, "
+                        f"{encolados} analisis encolados, {descartados} descartados (LLM ocupado)"
+                    )
                     if progress is not None and total_frames:
                         progress.update({"processed": total_frames, "percent": 100.0})
                     break

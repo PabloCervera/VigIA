@@ -22,7 +22,7 @@ for _dir in (UPLOADS_DIR, FRAMES_DIR):
     _dir.mkdir(parents=True, exist_ok=True)
 
 # Modelo de Groq usado por los módulos de IA (configurable por entorno).
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
 
 # Parámetros del pipeline.
 FRAME_SIZE = (1708, 960)   # tamaño (ancho, alto) al que se redimensiona cada frame

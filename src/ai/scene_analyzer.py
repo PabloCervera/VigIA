@@ -22,7 +22,10 @@ class SceneAnalyzer:
         Inicializa el analizador de escenas y carga las variables de entorno necesarias.
         """
         load_dotenv()
-        self.analyzer = ChatGroq(model=GROQ_MODEL)
+        # reasoning_effort="none": desactiva el razonamiento de los modelos que lo traen (Qwen3).
+        # Con él activo, el modelo gasta casi todo su presupuesto de salida "pensando" y devuelve
+        # una descripción llena de <think> que luego confunde al clasificador de riesgo.
+        self.analyzer = ChatGroq(model=GROQ_MODEL, reasoning_effort="none")
         
     def analyze(self, frame, context=""):
         """

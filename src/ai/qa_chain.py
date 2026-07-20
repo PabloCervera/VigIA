@@ -14,7 +14,9 @@ class QAChain:
     Esta clase utiliza un modelo de lenguaje para procesar la pregunta del usuario y generar una respuesta basada en los eventos proporcionados.
     """
     def __init__(self):
-        self.qaChain = ChatGroq(model=GROQ_MODEL)
+        # reasoning_effort="none": evita que el razonamiento interno (<think>) de modelos como
+        # Qwen3 se lleve el presupuesto de salida y acabe en las respuestas del chat.
+        self.qaChain = ChatGroq(model=GROQ_MODEL, reasoning_effort="none")
 
     def ask(self, question, events):
         """

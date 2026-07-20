@@ -12,7 +12,7 @@ Combina:
 
 - **YOLOv8** ([ultralytics](https://github.com/ultralytics/ultralytics)) para detección de objetos.
 - **DeepSORT** ([deep-sort-realtime](https://github.com/levan92/deep_sort_realtime)) para seguimiento multi-objeto con IDs persistentes.
-- **LangChain + LangGraph** orquestando un agente con el modelo de visión `llama-4-scout` de **Groq** para analizar la escena y razonar sobre el riesgo.
+- **LangChain + LangGraph** orquestando un agente con el modelo de visión `qwen3.6-27b` de **Groq** para analizar la escena y razonar sobre el riesgo.
 - **FastAPI** para controlar el pipeline y exponer eventos vía API REST + WebSocket.
 - **SQLite** para almacenar el historial de eventos.
 - **Streamlit** como interfaz: subir vídeo, ver alertas con su captura y preguntar sobre la escena.
@@ -21,11 +21,23 @@ Combina:
 
 ## Demo
 
-![Demo del dashboard](docs/demo.gif)
+El dashboard guía las tres fases del flujo: subir el vídeo, procesarlo y revisar los eventos.
 
-| Subida de vídeo | Eventos detectados | Chat Q&A |
-|---|---|---|
-| ![](docs/image.png) | ![](docs/image2.png) | ![](docs/image3.png) |
+| 1. Subir el vídeo | 2. Vídeo listo para analizar |
+|---|---|
+| ![Pantalla inicial de subida](docs/image1.png) | ![Vídeo cargado y botón de inicio](docs/image2.png) |
+
+| 3. Procesando | 4. Eventos detectados |
+|---|---|
+| ![Barra de progreso del procesamiento](docs/image3.png) | ![Evento con nivel de riesgo, alerta y captura](docs/image4.png) |
+
+Cada evento se muestra con el **minuto del vídeo** en que ocurrió, su **nivel de riesgo**, la alerta
+generada por el agente y la **captura del frame** correspondiente.
+
+Bajo los eventos, un chat permite preguntar en lenguaje natural sobre lo ocurrido. El asistente
+responde apoyándose únicamente en los eventos registrados, citando su instante y nivel de riesgo:
+
+![Chat de preguntas sobre la escena, respondiendo sobre los riesgos de un evento](docs/image5.png)
 
 ## Arquitectura
 
@@ -49,7 +61,7 @@ flowchart TD
 3. **Tracker** (DeepSORT) asigna un ID estable a cada objeto entre frames y anota el frame.
 4. **EventDetector** mantiene el historial de posiciones de cada track y detecta los que llevan estáticos un nº de frames (posible objeto abandonado, persona inmóvil, etc.).
 5. Si hay objetos estáticos —y respetando un intervalo mínimo entre análisis (`analysis_interval = 10s`)— se **encola** un trabajo de análisis. La llamada al LLM corre en un **hilo aparte** para no bloquear la captura, de modo que el vídeo se sigue procesando con fluidez.
-6. El agente describe la escena, decide el riesgo y, si es **medio o alto**, guarda la captura en disco y registra el evento en la base de datos.
+6. El agente describe la escena, decide el riesgo y, si es **medio o alto**, guarda la captura en disco y registra el evento en la base de datos. El evento se marca con el **instante del vídeo** en que ocurrió (`mm:ss`, calculado a partir del nº de frame y los FPS), no con la hora del sistema; en fuentes en directo, donde no existe ese instante, se usa la marca de tiempo real.
 
 ### El agente de alerta ([src/ai/alert_agent.py](src/ai/alert_agent.py))
 
@@ -135,6 +147,20 @@ GROQ_API_KEY=tu_api_key_aqui
 ```
 
 `load_dotenv()` la carga automáticamente en los módulos que usan Groq.
+
+Opcionalmente puedes cambiar el modelo con la variable de entorno `GROQ_MODEL`
+(por defecto `qwen/qwen3.6-27b`). Debe ser un modelo **multimodal**, ya que el analizador de
+escena le envía el frame como imagen:
+
+```env
+GROQ_MODEL=qwen/qwen3.6-27b
+```
+
+> **Nota sobre modelos con razonamiento:** los módulos de IA se instancian con
+> `reasoning_effort="none"`. Modelos como Qwen3 gastan casi todo su presupuesto de salida
+> "pensando" y devuelven descripciones llenas de bloques `<think>` que degradan la evaluación
+> de riesgo (o agotan los tokens antes de emitir la respuesta). Si cambias a un modelo sin
+> razonamiento, este parámetro es inocuo.
 
 ---
 
@@ -243,7 +269,7 @@ Este proyecto es una **prueba de concepto** orientada a portfolio, no un sistema
 | Área                  | Tecnología                                              |
 | --------------------- | ------------------------------------------------------- |
 | Visión por computador | OpenCV, YOLOv8 (ultralytics), DeepSORT                  |
-| IA generativa         | LangChain, LangGraph, Groq (`llama-4-scout-17b`)        |
+| IA generativa         | LangChain, LangGraph, Groq (`qwen/qwen3.6-27b`)         |
 | API / backend         | FastAPI, Uvicorn, WebSockets                            |
 | Persistencia          | SQLite                                                  |
 | Dashboard             | Streamlit                                               |

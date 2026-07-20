@@ -38,8 +38,11 @@ def dashboard():
 
         if st.button("Volver"):
             requests.post(f"{API}/clear_events")
+            # El historial del chat se refiere a los eventos que se acaban de borrar:
+            # hay que descartarlo también para empezar limpio con el siguiente vídeo.
+            st.session_state.messages = []
             st.session_state.phase = "idle"
-            st.rerun()  
+            st.rerun()
 
         st.subheader("Pregunta sobre la escena")
         chat_qa()
@@ -60,7 +63,7 @@ def upload_file():
             else:
                 st.error("Error al subir el video.")       
 
-@st.fragment(run_every=1)
+@st.fragment(run_every=5)
 def show_progress():
     """Muestra el avance del procesamiento del vídeo actual; indeterminado si es un flujo en directo."""
     response = requests.get(f"{API}/progress")
@@ -71,7 +74,7 @@ def show_progress():
         else:
             st.write("Procesando flujo en directo...")
 
-@st.fragment(run_every=1)
+@st.fragment(run_every=5)
 def check_status():
     """Sondea periódicamente el estado de la API y pasa a la fase final cuando el pipeline se detiene."""
     response = requests.get(f"{API}/status")
@@ -105,9 +108,11 @@ def show_results():
     response = requests.get(f"{API}/events")
     if response.status_code == 200:
         events = response.json()["events"]
+        riesgo_es = {"low": "bajo", "medium": "medio", "high": "alto"}
         st.write(f"Total de eventos: {len(events)}")
         for event in events:
-            st.write(f"**{event['timestamp']}** — Riesgo: {event['risk_level']}")
+            riesgo = riesgo_es.get(event['risk_level'], event['risk_level'])
+            st.write(f"**Minuto del vídeo {event['timestamp']}** — Riesgo: {riesgo}")
             st.write(event['alert'])
             if event['frame_path']:
                 st.image(event['frame_path'])
