@@ -162,6 +162,14 @@ GROQ_MODEL=qwen/qwen3.6-27b
 > de riesgo (o agotan los tokens antes de emitir la respuesta). Si cambias a un modelo sin
 > razonamiento, este parámetro es inocuo.
 
+Para **depurar** el análisis de riesgo puedes activar una traza que imprime, en cada llamada al
+agente, los objetos estáticos detectados y el riesgo (con su justificación) que decidió el LLM.
+Está desactivada por defecto y se habilita con la variable de entorno `VIGIA_DEBUG`:
+
+```env
+VIGIA_DEBUG=1
+```
+
 ---
 
 ## Uso

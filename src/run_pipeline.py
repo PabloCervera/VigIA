@@ -8,8 +8,12 @@ from capture.video_source import VideoSource, VideoSourceError, EndOfStream
 from detection.tracker import Tracker
 from detection.event_detector import EventDetector
 from ai.alert_agent import agent
-from config import FRAMES_DIR, FRAME_SIZE, ANALYSIS_INTERVAL
+from config import FRAMES_DIR, FRAME_SIZE, ANALYSIS_INTERVAL, REANALYSIS_STEP
 from datetime import datetime
+
+# Traza de diagnóstico opcional: imprime qué vio y qué decidió el LLM en cada análisis.
+# Desactivada por defecto; se activa con la variable de entorno VIGIA_DEBUG (p. ej. VIGIA_DEBUG=1).
+DEBUG = os.environ.get("VIGIA_DEBUG", "").lower() not in ("", "0", "false", "no")
 
 
 def _format_video_time(seconds):
@@ -55,6 +59,11 @@ def _analysis_worker(job_queue, events, video):
                 "risk_confidence": 0.0,
                 "alert_message": ""
             })
+            # Traza de diagnóstico (solo con VIGIA_DEBUG): qué vio y qué decidió el LLM.
+            if DEBUG:
+                clases = ", ".join(f"{o.get('class_name')}({o.get('static_frames')}f)" for o in static_objects)
+                t = _format_video_time(video_time) if video_time is not None else "live"
+                print(f"[analisis] t={t} riesgo={result['risk_level']} | estaticos=[{clases}] | motivo={result.get('risk_reason','')}")
             if events is not None and result["risk_level"] in ("medium", "high"):
                 # Instante del vídeo (mm:ss) si conocemos los FPS; si no (webcam/stream), hora real.
                 if video_time is not None:
@@ -128,6 +137,9 @@ def run_pipeline(video_source=0, events=None, latest_frame=None, stop_event=None
             processed_frames = 0
             encolados = descartados = 0
             frames_con_estaticos = 0
+            # track_id -> nº de frames inmóvil en su último análisis. Sirve para no re-analizar
+            # el mismo objeto salvo que persista bastante más tiempo (escalada de riesgo).
+            analyzed_static = {}
             if progress is not None:
                 progress.update({"processed": 0, "total": total_frames, "percent": 0.0})
 
@@ -153,8 +165,19 @@ def run_pipeline(video_source=0, events=None, latest_frame=None, stop_event=None
                     static_objects = event_detector.update(tracks)
                     if static_objects:
                         frames_con_estaticos += 1
+                        # Olvida los objetos que ya no están estáticos (así, si uno reaparece
+                        # inmóvil más tarde, se vuelve a analizar como nuevo).
+                        current_ids = {o["track_id"] for o in static_objects}
+                        analyzed_static = {t: c for t, c in analyzed_static.items() if t in current_ids}
+                        # Objetos que justifican un análisis: nuevos, o que llevan REANALYSIS_STEP
+                        # frames más inmóviles desde la última vez (escalada de posible abandono).
+                        nuevos = [
+                            o for o in static_objects
+                            if o["track_id"] not in analyzed_static
+                            or o["static_frames"] - analyzed_static[o["track_id"]] >= REANALYSIS_STEP
+                        ]
                         now = time.time()
-                        if now - last_analysis_time > analysis_interval:
+                        if nuevos and now - last_analysis_time > analysis_interval:
                             # Segundo del vídeo correspondiente a este frame (None en directo).
                             video_time = processed_frames / fps if fps else None
                             try:
@@ -166,6 +189,9 @@ def run_pipeline(video_source=0, events=None, latest_frame=None, stop_event=None
                                 )
                                 last_analysis_time = now
                                 encolados += 1
+                                # Registra el nº de frames inmóvil con que se analizó cada uno.
+                                for o in nuevos:
+                                    analyzed_static[o["track_id"]] = o["static_frames"]
                             except queue.Full:
                                 # ya hay un análisis en curso; se omite este
                                 descartados += 1

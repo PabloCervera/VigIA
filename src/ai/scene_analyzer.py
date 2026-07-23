@@ -27,11 +27,21 @@ class SceneAnalyzer:
         # una descripción llena de <think> que luego confunde al clasificador de riesgo.
         self.analyzer = ChatGroq(model=GROQ_MODEL, reasoning_effort="none")
         
+    # Ancho máximo (px) de la imagen que se envía al LLM. El coste en tokens de imagen
+    # crece ~cuadráticamente con la resolución, así que se reescala una copia del frame
+    # antes de codificarla; 640 px basta para razonar sobre la escena y abarata mucho la llamada.
+    LLM_IMAGE_WIDTH = 640
+
     def analyze(self, frame, context=""):
         """
         Analiza un frame de video y genera una descripción textual de la escena.
         """
-        _, buffer = cv2.imencode(".jpg", frame)
+        h, w = frame.shape[:2]
+        if w > self.LLM_IMAGE_WIDTH:
+            scale = self.LLM_IMAGE_WIDTH / w
+            frame = cv2.resize(frame, (self.LLM_IMAGE_WIDTH, int(h * scale)))
+        # calidad JPEG moderada: reduce bytes sin afectar a la comprensión de la escena.
+        _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
         image_b64 = base64.b64encode(buffer).decode("utf-8")
         message = HumanMessage(content=[
             {"type": "text", "text": "¿Qué ves en esta imagen? " + context},

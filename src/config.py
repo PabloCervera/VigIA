@@ -27,3 +27,7 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
 # Parámetros del pipeline.
 FRAME_SIZE = (1708, 960)   # tamaño (ancho, alto) al que se redimensiona cada frame
 ANALYSIS_INTERVAL = 10     # segundos mínimos entre análisis del agente de IA
+# Un objeto ya analizado no se vuelve a analizar hasta que acumule este nº de frames
+# adicionales inmóvil (escalada de riesgo). Evita re-analizar la misma escena estática una
+# y otra vez, pero permite reevaluar un objeto que persiste (posible abandono confirmado).
+REANALYSIS_STEP = 150
