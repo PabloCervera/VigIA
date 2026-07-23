@@ -26,3 +26,14 @@ numpy==1.26.4
 # --- Testing ---
 pytest==8.3.4
 pytest-asyncio==0.24.0
+
+
+Hace unas semanas comencé el desarrollo de VigIA, un sistema de videovigilancia inteligente. Hoy lo doy por terminado.
+
+VigIA detecta y sigue objetos en vídeo en tiempo real (YOLOv8 + DeepSORT) y, cuando algo se queda quieto (una mochila abandonada, una persona inmóvil), delega en un agente de IA que describe la escena, evalúa el nivel de riesgo y genera una alerta. Todo explorable desde un dashboard con un chat para preguntar sobre lo ocurrido.
+
+El reto más interesante no fue conectar las piezas, sino hacerlas convivir: la IA tarda segundos en responder, pero el vídeo no puede esperar. Lo resolví con un análisis en segundo plano que no frena la captura, y dividiendo el trabajo del modelo en dos pasos (primero describe, luego juzga el riesgo), mucho más fiable que pedírselo todo de golpe.
+
+VigIA no aspira a ser un producto de producción, sino una prueba de concepto. Pero pocos proyectos personales me han hecho pelearme tanto con los detalles que de verdad importan.
+
+👇 Código y detalles en los comentarios
