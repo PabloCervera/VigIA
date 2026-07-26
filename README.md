@@ -34,7 +34,7 @@ El dashboard guía las tres fases del flujo: subir el vídeo, procesarlo y revis
 Cada evento se muestra con el **minuto del vídeo** en que ocurrió, su **nivel de riesgo**, la alerta
 generada por el agente y la **captura del frame** correspondiente.
 
-Bajo los eventos, un chat permite preguntar en lenguaje natural sobre lo ocurrido. El asistente
+Tras los eventos, un chat permite preguntar en lenguaje natural sobre lo ocurrido. El asistente
 responde apoyándose únicamente en los eventos registrados, citando su instante y nivel de riesgo:
 
 ![Chat de preguntas sobre la escena, respondiendo sobre los riesgos de un evento](docs/image5.png)
@@ -43,15 +43,15 @@ responde apoyándose únicamente en los eventos registrados, citando su instante
 
 ```mermaid
 flowchart TD
-    A["VideoSource\nwebcam / fichero / RTSP"] -->|frames| B["YOLODetector\nYOLOv8"]
+    A["VideoSource\nwebcam / fichero"] -->|frames| B["YOLODetector\nYOLOv8"]
     B -->|detecciones| C["Tracker\nDeepSORT — IDs persistentes"]
     C -->|tracks| D["EventDetector\nobjetos estáticos"]
-    D -->|static_objects| E["Agente LangGraph\nanalyze_scene → decide_risk"]
+    D -->|static_objects| E["Agente LangGraph\nanalyze_scene → \ndecide_risk"]
     E -->|riesgo medio/alto| F["send_alert\ncompone mensaje de alerta"]
     E -->|riesgo bajo| G["ignore"]
     F --> H["EventStore\nSQLite + frame en disco"]
-    H <-->|eventos| I["FastAPI\n/start /stop /events /ask /latest_frame"]
-    I <-->|HTTP| J["Dashboard Streamlit\nsubir vídeo · alertas con frame · chat Q&A"]
+    H <-->|eventos| I["FastAPI\n/start /stop /events \n/ask /latest_frame"]
+    I <-->|HTTP| J["Dashboard Streamlit\nsubir vídeo · \nalertas con frame · \nchat Q&A"]
 ```
 
 ### Flujo del pipeline ([src/run_pipeline.py](src/run_pipeline.py))
@@ -248,11 +248,11 @@ Ambos servicios comparten un volumen `app-data` donde persisten los vídeos subi
 
 ## Estado del proyecto
 
-El desarrollo está organizado por sprints (ver historial de commits):
+El desarrollo está organizado por sprints:
 
-- ✅ **Sprint 1–2** — Captura de vídeo, detección YOLOv8, tracking DeepSORT, detección de objetos estáticos y persistencia de eventos en SQLite.
-- ✅ **Sprint 3** — Descripción de escena con Groq Vision y agente de riesgo con LangGraph.
-- ✅ **Sprint 4** — API FastAPI (control del pipeline, WebSocket de streaming), dashboard de Streamlit y chat de Q&A sobre los eventos.
+- **Sprint 1–2** — Captura de vídeo, detección YOLOv8, tracking DeepSORT, detección de objetos estáticos y persistencia de eventos en SQLite.
+- **Sprint 3** — Descripción de escena con Groq Vision y agente de riesgo con LangGraph.
+- **Sprint 4** — API FastAPI (control del pipeline, WebSocket de streaming), dashboard de Streamlit y chat de Q&A sobre los eventos.
 
 ### Próximos pasos
 
@@ -265,9 +265,7 @@ El desarrollo está organizado por sprints (ver historial de commits):
 
 Este proyecto es una **prueba de concepto** orientada a portfolio, no un sistema de seguridad listo para producción. Conviene tenerlo presente:
 
-- **Mono-usuario**: el estado (pipeline, vídeo actual, progreso) vive en memoria del proceso; se procesa **un vídeo a la vez**.
 - **Riesgo no evaluado formalmente**: la clasificación se apoya en un LLM guiado por una rúbrica y datos de grounding (clase y tiempo inmóvil), pero **no** está calibrada contra un conjunto etiquetado; puede dar falsos positivos/negativos.
-- **Sin autenticación**: la API y el dashboard están pensados para uso local/demostración, sin control de acceso.
 - **Heurística de "objeto estático"**: se basa en la distancia recorrida; no contempla escenarios como cámara en movimiento.
 
 ---
